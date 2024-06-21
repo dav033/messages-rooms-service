@@ -3,15 +3,45 @@ use actix::Message as ActixMessage;
 use diesel::Insertable;
 use diesel::QueryResult;
 use diesel::Queryable;
+use serde::Deserialize;
 use serde::Serialize;
 
-#[derive(Queryable, Serialize, Debug)]
+#[derive(Queryable, Serialize, Debug, Clone)]
 pub struct Room {
     pub id: i32,
     pub type_room: String,
-    pub messages: String, // Stored as JSON string
+    pub messages: String,
     pub name: String,
-    pub users: String, // Stored as JSON string
+    pub users: String,
+}
+
+#[derive(Queryable, Serialize, Deserialize, Debug)]
+pub struct MessageResponse {
+    pub id: i32,
+    pub body: String,
+    pub typeM: String,
+    pub datetime: String,
+    pub sender: String,
+    pub receiver: String,
+    pub readed: Vec<i32>,
+}
+
+#[derive(Queryable, Serialize, Debug)]
+pub struct RoomInitialInformation {
+    pub id: i32,
+    pub type_room: String,
+    pub messages: Vec<i32>,
+    pub name: String,
+    pub users: Vec<i32>,
+    pub last_message: Option<MessageResponse>, // Opcional en caso de que no haya mensajes
+    pub unreaded_messages: Option<Vec<MessageResponse>>,
+}
+
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct MessagesRoomInformation {
+    pub last_message: Option<MessageResponse>,
+    pub unreaded_messages: Vec<MessageResponse>,
 }
 
 #[derive(Queryable, Serialize, Debug)]
@@ -36,7 +66,7 @@ pub struct NewRoom {
 pub struct CreateRoom {
     pub name: String,
     pub type_room: String,
-    pub users: String
+    pub users: String,
 }
 
 #[derive(ActixMessage)]
@@ -58,10 +88,17 @@ pub struct AddMessage {
 pub struct GetRooms;
 
 #[derive(ActixMessage)]
-#[rtype(result = "QueryResult<Vec<RoomResponse>>")]
+#[rtype(result = "QueryResult<Vec<RoomInitialInformation>>")]
 pub struct GetUserRooms {
     pub user_id: i32,
 }
+
+#[derive(Serialize, Clone, Deserialize)]
+pub struct getRoomInformationApiExternal {
+    pub room_id: i32,
+    pub user_id: i32,
+}
+
 
 impl Room {
     pub fn get_messages(&self) -> Vec<i32> {
@@ -79,8 +116,6 @@ impl Room {
     pub fn set_users(&mut self, users: Vec<i32>) {
         self.users = serde_json::to_string(&users).unwrap();
     }
-
-    
 }
 
 impl From<Room> for RoomResponse {

@@ -1,7 +1,5 @@
 use crate::db_utils::DbActor;
-use crate::models::{
-    AddMessage, AddUser, CreateRoom, GetRooms, GetUserRooms, NewRoom, Room, RoomResponse,
-};
+use crate::models::*;
 use crate::schema::rooms;
 use crate::schema::rooms::dsl::*;
 use crate::schema::rooms::id as room_id;
@@ -112,23 +110,60 @@ impl Handler<AddUser> for DbActor {
 }
 
 impl Handler<GetUserRooms> for DbActor {
-    type Result = QueryResult<Vec<RoomResponse>>;
+    type Result = QueryResult<Vec<RoomInitialInformation>>;
 
     fn handle(
         &mut self,
         msg: GetUserRooms,
         _: &mut Self::Context,
-    ) -> QueryResult<Vec<RoomResponse>> {
+    ) -> QueryResult<Vec<RoomInitialInformation>> {
         let mut conn = self
             .0
             .get()
-            .expect("Create Room: Error connecting to database");
+            .expect("GetUserRooms: Error connecting to database");
 
-        
         let rooms_result: Result<Vec<Room>, diesel::result::Error> = rooms
             .filter(users.like(format!("%{}%", msg.user_id)))
             .load::<Room>(&mut conn);
 
-        rooms_result.map(|rooms_result| rooms_result.into_iter().map(RoomResponse::from).collect())
+        let client = reqwest::blocking::Client::new();
+
+        rooms_result.and_then(|owo| {
+            owo.into_iter()
+                .map(|room| {
+                    // Construir la URL para la solicitud HTTP
+                    let url = format!(
+                        "http://localhost:8082/messages/{}/info/{}",
+                        room.id, msg.user_id
+                    );
+
+                    // Realizar la solicitud HTTP
+
+                    let messages_parsed = room.get_messages();
+                    let users_parsed = room.get_users();
+                    match client.get(&url).send() {
+                        Ok(response) => {
+                            if response.status().is_success() {
+                                match response.json::<MessagesRoomInformation>() {
+                                    Ok(info) => Ok(RoomInitialInformation {
+                                        id: room.id,
+                                        type_room: room.type_room,
+                                        messages: messages_parsed.clone(),
+                                        name: room.name,
+                                        users: users_parsed.clone(),
+                                        last_message: info.last_message,
+                                        unreaded_messages: Some(info.unreaded_messages),
+                                    }),
+                                    Err(_) => Err(diesel::result::Error::NotFound),
+                                }
+                            } else {
+                                Err(diesel::result::Error::NotFound)
+                            }
+                        }
+                        Err(_) => Err(diesel::result::Error::NotFound),
+                    }
+                })
+                .collect()
+        })
     }
 }

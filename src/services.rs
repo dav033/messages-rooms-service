@@ -23,7 +23,6 @@ pub struct AddMessageBody {
     pub message_id: i32,
 }
 
-
 #[post("/create_room")]
 pub async fn create_room(state: Data<AppState>, body: Json<CreateRoomBody>) -> impl Responder {
     let db: Addr<DbActor> = state.as_ref().db.clone();
