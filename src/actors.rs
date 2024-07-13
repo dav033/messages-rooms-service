@@ -3,7 +3,7 @@ use crate::models::*;
 use crate::schema::rooms;
 use crate::schema::rooms::dsl::*;
 use crate::schema::rooms::id as room_id;
-use crate::schema::rooms::{messages, users};
+use crate::schema::rooms::{users};
 use actix::Handler;
 use diesel::{self, prelude::*};
 
@@ -46,14 +46,7 @@ impl Handler<AddMessage> for DbActor {
 
         let mut room: Room = rooms.find(msg.room_id).get_result(&mut conn)?;
 
-        let mut db_messages = room.get_messages();
-        db_messages.push(msg.message_id);
-        room.set_messages(db_messages);
-
-        // Actualiza la sala en la base de datos
-        let _ = diesel::update(rooms.find(msg.room_id))
-            .set(messages.eq(&serde_json::to_string(&room.get_messages()).unwrap()))
-            .execute(&mut conn);
+    
 
         // Devuelve la sala actualizada
         let result: Result<Room, diesel::result::Error> =
@@ -139,7 +132,6 @@ impl Handler<GetUserRooms> for DbActor {
 
                     // Realizar la solicitud HTTP
 
-                    let messages_parsed = room.get_messages();
                     let users_parsed = room.get_users();
                     match client.get(&url).send() {
                         Ok(response) => {
@@ -148,7 +140,6 @@ impl Handler<GetUserRooms> for DbActor {
                                     Ok(info) => Ok(RoomInitialInformation {
                                         id: room.id,
                                         type_room: room.type_room,
-                                        messages: messages_parsed.clone(),
                                         name: room.name,
                                         users: users_parsed.clone(),
                                         last_message: info.last_message,
