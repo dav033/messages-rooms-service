@@ -3,7 +3,7 @@ use crate::models::*;
 use crate::schema::rooms;
 use crate::schema::rooms::dsl::*;
 use crate::schema::rooms::id as room_id;
-use crate::schema::rooms::{users};
+use crate::schema::rooms::users;
 use actix::Handler;
 use diesel::{self, prelude::*};
 
@@ -46,8 +46,6 @@ impl Handler<AddMessage> for DbActor {
 
         let mut room: Room = rooms.find(msg.room_id).get_result(&mut conn)?;
 
-    
-
         // Devuelve la sala actualizada
         let result: Result<Room, diesel::result::Error> =
             rooms.find(msg.room_id).get_result(&mut conn);
@@ -61,16 +59,18 @@ impl Handler<GetRooms> for DbActor {
     type Result = QueryResult<Vec<RoomResponse>>;
 
     fn handle(&mut self, _msg: GetRooms, _: &mut Self::Context) -> QueryResult<Vec<RoomResponse>> {
-        let mut conn = self
-            .0
-            .get()
-            .expect("Create Room: Error connecting to database");
+        let mut conn = match self.0.get() {
+            Ok(conn) => conn,
+            Err(err) => {
+                // log::error!("Error connecting to database: {:?}", err);
+                return Err(diesel::result::Error::NotFound);
+            }
+        };
 
-        // Use `rooms::table` instead of `rooms`
-        let rooms_result: Result<Vec<Room>, diesel::result::Error> =
-            rooms::table.load::<Room>(&mut conn);
-
-        rooms_result.map(|rooms_result| rooms_result.into_iter().map(RoomResponse::from).collect())
+        match rooms::table.load::<Room>(&mut conn) {
+            Ok(rooms_vec) => Ok(rooms_vec.into_iter().map(RoomResponse::from).collect()),
+            Err(err) => Err(err),
+        }
     }
 }
 
