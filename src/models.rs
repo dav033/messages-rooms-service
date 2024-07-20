@@ -35,7 +35,6 @@ pub struct RoomInitialInformation {
     pub unreaded_messages: Option<Vec<MessageResponse>>,
 }
 
-
 #[derive(Deserialize, Serialize, Debug)]
 pub struct MessagesRoomInformation {
     pub last_message: Option<MessageResponse>,
@@ -96,15 +95,10 @@ pub struct getRoomInformationApiExternal {
     pub user_id: i32,
 }
 
-
 impl Room {
-
-
     pub fn get_users(&self) -> Vec<i32> {
         serde_json::from_str(&self.users).unwrap_or_else(|_| vec![])
     }
-
-
 
     pub fn set_users(&mut self, users: Vec<i32>) {
         self.users = serde_json::to_string(&users).unwrap();
